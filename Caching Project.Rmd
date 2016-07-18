@@ -1,0 +1,155 @@
+---
+title: "The Highest Impacting Storm Events for Injuries, Fatalities, Property Damage and Crop Damage"
+author: "Michael Pearson"
+date: "July 17, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Synopsis: 
+In this report I make use of data from the National Weather Service's Storm Data for the years for the years 1950 to November of 2011. I determine which weather events cause the most harm to health, and which cause the most damage to crops and property. In terms of health damage, I use two categories: fatalities and injuries. I find the 5 most harmful events in those two categories by summing those categories by event. For property and crop damage I do the same things: sum the damage (in dollars) for the five most damaging types of events.
+
+## Data Processing
+
+The storm data used for this analysis was from the National Weather Service and downloaded from the following url:
+
+https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2
+
+The storm data was downloaded and then converted to a comma separated value file (.csv). To understand the values and catagories, the National Weather Service Storm Data Documentation (at url https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2Fpd01016005curr.pdf) 
+
+and the National Climatic Data Center Storm Events FAQ (at url https://d396qusza40orc.cloudfront.net/repdata%2Fpeer2_doc%2FNCDC%20Storm%20Events-FAQ%20Page.pdf)
+
+were used as references. 
+
+After being converted into a .csv format, the data was read into RStudio Version 0.99.902.
+
+This ran at `r Sys.time()`
+
+```{r get it, results = "hide"}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+setwd("/Users/mutecypher/Documents/Coursera/Reproducible Results/SecondProject")
+if (file.exists("data.zip"))
+{
+      file.remove("data.zip")
+  }
+if (file.exists("data.csv"))
+{
+      file.remove("data.csv")
+  }
+download.file(fileUrl, destfile = "data.zip", method = "curl")
+data <- read.csv("data.zip")
+write.csv(data,file = "data.csv")
+unlink(fileUrl)
+```
+
+**Getting the health damage data**
+
+Using the National Weather Service Storm Data Documentation as a reference, the types of events were in the column labeled EVTYPE, the number of fatalities were in the column labeled FATALITIES, and the number of injuries were in the column labeled INJURIES. The fatalities and injuries were summed by event type.
+
+```{r get top 5 events }
+## let's aggregate the data after removing NAs
+
+fatalities <- aggregate(data$FATALITIES ~ data$EVTYPE, data, FUN=sum)
+names(fatalities) <- c("EVTYPE", "FATALITIES")
+injuries <- aggregate(data$INJURIES ~ data$EVTYPE, data, FUN=sum)
+names(injuries) <- c("EVTYPE", "INJURIES")
+##Sort fatalities by event from greatest to least, select the top 5
+fivefatalities <- fatalities[with(fatalities, order(fatalities[,2], decreasing = T)),]
+fivefatalities <- fivefatalities[1:5,]
+##Sort injuries by event from greatest to least, select the top 5
+fiveinjuries <- injuries[with(injuries, order(injuries[,2], decreasing = T)),]
+fiveinjuries <- fiveinjuries[1:5,]
+```
+The data was sorted to find the 5 most events that caused the greatest number of fatalities and the greatest number of injuries. This data was used to create a bar graph of each outcome. This will be presented below.
+
+**Property and Crop Damage**
+  
+
+I will follow the a similar method in this section to find the events that cause the greatest damage to property and the greatest damage to crops. The data for crop damage is in the column labeled CROPDMG, multiplied by the factor in the CROPDMGEXP column (ie, K for thousand, M for million, B for Billion) and the data for property damage is in the column labeled PRPDMG, multiplied by the factor in the CRPDMGEXP column. In both the CROPDMGEXP and the PROPDMGEXP columns there are ambiguous factors ("h"" and "H"", "m" and "M", and "+", ' ' , and numberic values 0-1). I will use 'h' and "H" as interchangeable for multiplying the CROPDMG amount by 100, the "k" and "K" for multiplying by 1000, the "m" and "M" for multiplying by a million, and any numeric values as 10 to that power as a multiplier. I used the information on this github link for reformatting the CROPDMGEXP and PROPDMGEXP data : https://github.com/flyingdisc/RepData_PeerAssessment2/blob/master/how-to-handle-PROPDMGEXP.md
+
+Once the data values in PROPDMG and CROPDMG are properly evaluated using the PROPDMG ana CROPDMG values, I will sum the damage amounts by event type - as per the health data section. Since the amounts are large, I will divide the raw sums by 10^9 to convert to billions of dollars.
+
+
+```{r summing property and crop damage}
+dM <- data[which(data$PROPDMGEXP == "M" | data$PROPDMGEXP == "m" ),]
+## muptiply the millions by a million
+dM$PROPDMG <- dM$PROPDMG * 10^6
+dK <- data[which(data$PROPDMGEXP == "K" | data$PROPDMGEXP == "k" ),]
+## multiply the thousands by a thousand
+dK$PROPDMG <- dK$PROPDMG * 10^3
+dH <- data[which(data$PROPDMGEXP == "H" | data$PROPDMGEXP == "h" ),]
+## multiply the hundreds by a hundred
+dH$PROPDMG <- dH$PROPDMG * 10^2
+dB <- data[which(data$PROPDMGEXP == "B" | data$PROPDMGEXP == "b" ),]
+## multiply the billions by a billion
+dB$PROPDMG <- dB$PROPDMG * 10^9
+## separate the blank exponent field
+dblank <- data[which(data$PROPDMGEXP == ""),]
+dleft <- data[which(data$PROPDMGEXP != "M" & data$PROPDMGEXP != "m" & data$PROPDMGEXP != "H" & data$PROPDMGEXP != "h" & data$PROPDMGEXP != "K" & data$PROPDMGEXP != "k" & data$PROPDMGEXP != "B" & data$PROPDMGEXP != "b"& data$PROPDMGEXP != ""),]
+## multiply by the proper numeric exponent from the PROPDMGEXP factor, treat '+' as times 10, all others as times 1
+frameit <- outer(dleft$PROPDMGEXP == "8", c(10^8)) + outer(dleft$PROPDMGEXP =="7", c(10^7)) + outer(dleft$PROPDMGEXP =="6", c(10^6)) + outer(dleft$PROPDMGEXP == "5", c(10^5)) + outer(dleft$PROPDMGEXP =="4", c(10^4)) + outer(dleft$PROPDMGEXP =="3", c(10^3)) + outer(dleft$PROPDMGEXP == "2", c(10^2)) + outer(dleft$PROPDMGEXP =="1", c(10^1)) + outer(dleft$PROPDMGEXP =="+", c(10^1)) + outer(dleft$PROPDMGEXP == "+", c(10^1)) + outer(dleft$PROPDMGEXP =="-", c(1)) + outer(dleft$PROPDMGEXP =="?", c(1))
+dleft$PROPDMG <- dleft$PROPDMG * frameit
+## recombine all the properly multiplied data with rbind
+dprop <- rbind(dK, dH, dM, dB, dblank, dleft)
+prpdamage <- aggregate(dprop$PROPDMG ~ dprop$EVTYPE, dprop, FUN = sum)
+names(prpdamage)<- c("EVTYPE", "PRPDMG")
+## repeat the above for crop damage
+dcM <- data[which(data$CROPDMGEXP == "M" | data$CROPDMGEXP == "m" ),]
+dcM$CROPDMG <- dcM$CROPDMG * 10^6
+dcK <- data[which(data$CROPDMGEXP == "K" | data$CROPDMGEXP == "k" ),]
+dcK$CROPDMG <- dcK$CROPDMG * 10^3
+dcH <- data[which(data$CROPDMGEXP == "H" | data$CROPDMGEXP == "h" ),]
+dcH$CROPDMG <- dcH$CROPDMG * 10^2
+dcB <- data[which(data$CROPDMGEXP == "B" | data$CROPDMGEXP == "b" ),]
+dcB$CROPDMG <- dcB$CROPDMG * 10^9
+dcblank <- data[which(data$CROPDMGEXP == ""),]
+dcleft <- data[which(data$CROPDMGEXP != "M" & data$CROPDMGEXP != "m" & data$CROPDMGEXP != "H" & data$CROPDMGEXP != "h" & data$CROPDMGEXP != "K" & data$CROPDMGEXP != "k" & data$CROPDMGEXP != "B" & data$CROPDMGEXP != "b"& data$CROPDMGEXP != ""),]
+crameit <- outer(dcleft$CROPDMGEXP == "8", c(10^8)) + outer(dcleft$CROPDMGEXP =="7", c(10^7)) + outer(dcleft$CROPDMGEXP =="6", c(10^6)) + outer(dcleft$CROPDMGEXP == "5", c(10^5)) + outer(dcleft$CROPDMGEXP =="4", c(10^4)) + outer(dcleft$CROPDMGEXP =="3", c(10^3)) + outer(dcleft$CROPDMGEXP == "2", c(10^2)) + outer(dcleft$CROPDMGEXP =="1", c(10^1)) + outer(dcleft$CROPDMGEXP =="+", c(10^1)) + outer(dcleft$CROPDMGEXP == "+", c(10^1)) + outer(dcleft$CROPDMGEXP =="-", c(1)) + outer(dcleft$CROPDMGEXP =="?", c(1))
+dcleft$CROPDMG <- dcleft$CROPDMG * crameit
+## recombine all the properly multiplied data with rbind
+dcrop <- rbind(dcK, dcH, dcM, dcB, dcblank, dcleft)
+crpdamage <- aggregate(dcrop$CROPDMG ~ dcrop$EVTYPE, dcrop, FUN = sum)
+names(crpdamage)<- c("EVTYPE", "CRPDMG")
+fiveprops <- prpdamage[with(prpdamage, order(prpdamage[,2], decreasing = T)),]
+##Convert to Billions of dollars
+fiveprops <- fiveprops[1:5,]
+fiveprops$PRPDMG <- fiveprops$PRPDMG / 10^9
+fivecrops <- crpdamage[with(crpdamage, order(crpdamage[,2], decreasing = T)),]
+fivecrops <- fivecrops[1:5,]
+fivecrops$CRPDMG <- fivecrops$CRPDMG / 10^9
+options(scipen = 999)
+```
+##Results
+There were `r nrow(injuries)` event types. I summed the fatalities and injuries (separately) by event type. The events with the greatest number of fatalities, and greatest number of injuries were **`r fivefatalities[1,1]`**. There were **`r fivefatalities[1,2]`** fatalities, and **`r fiveinjuries[1,2]`** injuries. As can be seen from the bar plots, tornadoes were by far the most damaging events, far outstripping the second most damaging types of events.
+
+```{r make fatalities and injuries plots}
+par(mfrow = c(2,1) ,mar = c(1,4,1,1))
+barplot(fivefatalities$FATALITIES, main = "Fatalities by storm event from 1950 to 2011", ylab = "total number of fatalities", legend.text = fivefatalities$EVTYPE,col = c("red", "green", "blue", "yellow", "orange"))
+barplot(fiveinjuries$INJURIES, main = "Injuries by storm event from 1950 to 2011", ylab = "total number of injuries", legend.text = fiveinjuries$EVTYPE,col = c("red", "purple", "light blue", "green", "orange"))
+```
+
+
+
+**Tornadoes** were the most damaging of events in terms of fatalities(`r fivefatalities[1,2]`) and injuries(`r fiveinjuries[1,2]`), far outstripping `r fivefatalities[2,1]` with `r fivefatalities[2,2]` fatalities, and `r fiveinjuries[2,1]` with `r fiveinjuries[2,2]` injuries.
+
+For **property and crop damage**, the event with the greatest property damage was `r fiveprops[1,1]`, the event with the greatest crop damage was `r fivecrops[1,1]`. The highest damage was `r signif(fiveprops[1,2],3)` in billions of dollars for property and `r signif(fivecrops[1,2],3)` in billions of dollars for crops. 
+
+
+```{r make crop damage and property damage plots}
+
+par(mfrow = c(2,1) ,mar = c(1,4,1,1))
+barplot(fiveprops$PRPDMG, main = "Property Damage by storm event from 1950 to 2011", ylab = "damage in Billions of dollars", legend.text = fiveprops$EVTYPE,col = c("goldenrod", "cyan", "red", "coral", "chocolate"))
+barplot(fivecrops$CRPDMG, main = "Crop damage by storm event from 1950 to 2011", ylab = "damage in Billions of dollars", legend.text = fivecrops$EVTYPE,col = c("pink", "goldenrod", "darkmagenta", "darkgreen", "olivedrab"))
+```
+
+
+
+**Floods** were the most damaging of events in terms of property damage($ `r signif(fiveprops[1,2], 3)` B), far outstripping `r fiveprops[2,1]` with `r signif(fiveprops[2,2],3)` billions of dollars of damage. 
+
+**Drought** was the mast damaging event in terms of crop damage($B `r signif(fivecrops[1,2], 3)`), much more damaging than  `r fivecrops[2,1]` with `r signif(fivecrops[2,2], 3)` billions of dollars of damage.
+
+
+
